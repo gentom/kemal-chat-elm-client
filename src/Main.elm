@@ -1,55 +1,85 @@
-module Main exposing (..)
+import Html exposing (..)
+import Html.App as Html
+import Html.Attributes exposing (..)
+import Html.Events exposing (..)
+import WebSocket
+import List
 
-import Html exposing (Html, text, div, img)
-import Html.Attributes exposing (src)
+main: Program Never
+main =
+  Html.program
+  { init = init
+  , view = view
+  , update = update
+  , subscriptions = subscriptions
+  }
 
 
----- MODEL ----
 
+ -- MODEL
 
 type alias Model =
-    {}
+  { chatMessages : List String,
+    userMessage : String
+  }
 
-
-init : ( Model, Cmd Msg )
+init : (Model, Cmd Msg)
 init =
-    ( {}, Cmd.none )
+  ( Model [] ""
+  , Cmd.none
+  )
 
 
 
----- UPDATE ----
-
+-- UPDATE
 
 type Msg
-    = NoOp
+  = PostChatMessage
+  | UpdateUserMessage String
+  | NewChatMessage String
 
-
-update : Msg -> Model -> ( Model, Cmd Msg )
+update : Msg -> Model -> (Model, Cmd Msg)
 update msg model =
-    ( model, Cmd.none )
+  case msg of
+    PostChatMessage ->
+      let
+        message = model.userMessage
+      in
+        { model | userMessage = "" } ! [WebSocket.send "ws://0.0.0.0:3000/chat" message]
+
+    UpdateUserMessage message ->
+      { model | userMessage = message } ! []
+
+    NewChatMessage message  ->
+      let
+        messages = message :: model.chatMessages
+      in
+        { model | chatMessages = messages } ! []
 
 
 
----- VIEW ----
-
+-- VIEW
 
 view : Model -> Html Msg
 view model =
-    div []
-        [ img [ src "/logo.svg" ] []
-        , div [] [ text "Your Elm App is working!" ]
-        ]
+  div []
+    [ input [ placeholder "message..."
+            , autofocus True
+            , value model.userMessage
+            , onInput UpdateUserMessage
+            ] []
+    , button [ onClick PostChatMessage ] [ text "Submit" ]
+    , displayChatMessages model.chatMessages
+  ]
+
+displayChatMessages : List String -> Html a
+displayChatMessages chatMessages =
+  div [] (List.map ( \x -> div [] [ text x ] ) chatMessages)
 
 
 
----- PROGRAM ----
+ -- SUBSCRIPTIONS
 
-
-main : Program Never Model Msg
-main =
-    Html.program
-        { view = view
-        , init = init
-        , update = update
-        , subscriptions = always Sub.none
-        }
+subscriptions : Model -> Sub Msg
+subscriptions model =
+  WebSocket.listen "ws://0.0.0.0:3000/chat" NewChatMessage
